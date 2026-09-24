@@ -5,10 +5,13 @@ import { UpdatePetDto } from './dto/update-pet.dto';
 @Injectable()
 export class PetsService {
   create(createPetDto: CreatePetDto) {
+    console.log(createPetDto);
+    
     return 'This action adds a new pet';
   }
 
   findAll() {
+    
     return `This action returns all pets`;
   }
 

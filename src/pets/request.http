@@ -1,0 +1,20 @@
+### Create a pet listing
+POST http://localhost:3000/pets
+Content-Type: application/json
+
+{
+    "name": "Buddy",
+    "price": 45000.00,
+    "breed": "Golden Retriever",
+    "slug": "buddy-golden-retriever",
+    "description": "Friendly and playful Golden Retriever, perfect for families.",
+    "isAvailable": true,
+    "city": "Dhaka",
+    "address": "Dhanmondi, Dhaka",
+    "image": "https://example.com/images/buddy.jpg",
+    "age": 1.5
+  }
+
+
+### Get pets with filters
+GET http://localhost:3000/pets?minPrice=20&maxPrice=100&breed="Golden Retriever"&city="Dhaka"

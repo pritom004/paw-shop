@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './users/entities/user.entity';
 import { Pet } from './pets/entities/pet.entity';
+import { APP_PIPE } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -22,13 +23,13 @@ import { Pet } from './pets/entities/pet.entity';
           type: 'better-sqlite3',
           database: configService.get<string>('DATABASE_URL'),
           synchronize: true,
-          entities: [User, Pet],
+          entities: [User, Pet]
         };
       },
       inject: [ConfigService],
     }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, {provide: APP_PIPE, useValue: new ValidationPipe({whitelist: true, transform: true})}],
 })
 export class AppModule {}

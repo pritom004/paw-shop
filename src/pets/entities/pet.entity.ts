@@ -20,6 +20,9 @@ export class Pet {
   @Column()
   breed!: string;
 
+  @Column()
+  age!: number;
+
   @Column({ unique: true })
   slug!: string;
 
