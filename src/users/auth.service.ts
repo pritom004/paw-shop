@@ -25,13 +25,12 @@ export class AuthService {
   }
 
   async register(name: string, email: string, password: string) {
-    
     const hash = await this.hashPassword(password);
-    
+
     const users = await this.userService.findAll(email);
 
-    if(users.length !== 0){
-      throw new ConflictException("Email in use")
+    if (users.length !== 0) {
+      throw new ConflictException('Email in use');
     }
 
     return this.userService.create({ name, email, password: hash });
@@ -46,11 +45,11 @@ export class AuthService {
 
     const user = users[0];
 
-    const [storedHash, storedSalt] = user.password;
+    const [storedHash, storedSalt] = user.password.split('.');
 
-    const [computedHash] = (
-      await this.hashPassword(password, storedSalt)
-    ).split('.')[0];
+    const computedHash = (await this.hashPassword(password, storedSalt)).split(
+      '.',
+    )[0];
 
     if (storedHash !== computedHash) {
       throw new UnauthorizedException('Incorrect email or password');
@@ -59,9 +58,9 @@ export class AuthService {
     return user;
   }
 
-  async logout(id: string){
+  async logout(id: string) {
     // Todo: implement logout method
 
-    return "Logout successful";
+    return 'Logout successful';
   }
 }

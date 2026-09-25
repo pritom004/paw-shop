@@ -4,6 +4,20 @@ Content-Type: application/json
 
 {
     "name": "Pritom",
+    "email": "example1@email.com",
+    "password": "Sswsefw3frwafae3@"
+}
+
+
+### Login a user
+POST http://localhost:3000/users/login
+Content-Type: application/json
+
+{
     "email": "example@email.com",
     "password": "Sswsefw3frwafae3@"
 }
+
+
+### Logout
+POST http://localhost:3000/users/logout
