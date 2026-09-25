@@ -7,6 +7,7 @@ import {
   Param,
   Session,
   Delete,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -16,11 +17,12 @@ import { LoginDto } from './dto/login-dto';
 import { Serialize } from './interceptors/serialize.interceptor';
 import { UserDto } from './dto/user.dto';
 import { Throttle } from '@nestjs/throttler';
+import { CurrentUser } from './decorators/current-user.decorator';
 
 @Serialize(UserDto)
 @Controller('users')
 @Throttle({
-  default: {ttl: 6000, limit: 3}
+  default: { ttl: 6000, limit: 3 },
 })
 export class UsersController {
   constructor(
@@ -49,8 +51,14 @@ export class UsersController {
     session.userId = null;
   }
 
-  @Get()
-  whoami() {}
+  @Get('/whoami')
+  whoami(@CurrentUser() user: any) {
+    if (!user) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    return user;
+  }
 
   // Administrator Routes
 
@@ -64,7 +72,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  removeUser(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
 }
