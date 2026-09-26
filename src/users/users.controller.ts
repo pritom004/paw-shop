@@ -8,6 +8,7 @@ import {
   Session,
   Delete,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -18,6 +19,7 @@ import { Serialize } from './interceptors/serialize.interceptor';
 import { UserDto } from './dto/user.dto';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { AdminGuard } from 'src/guards/admin.guard';
 
 @Serialize(UserDto)
 @Controller('users')
@@ -62,15 +64,19 @@ export class UsersController {
 
   // Administrator Routes
 
+  @UseGuards(AdminGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
+
+  @UseGuards(AdminGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
+  @UseGuards(AdminGuard)
   @Delete(':id')
   removeUser(@Param('id') id: string) {
     return this.usersService.remove(id);
