@@ -5,10 +5,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { scrypt as __scrypt, randomBytes as _randomBytes } from 'crypto';
+import { scrypt as __scrypt, randomBytes } from 'crypto';
 import { promisify } from 'util';
 const scrypt = promisify(__scrypt);
-const randomBytes = promisify(_randomBytes);
+
 
 @Injectable()
 export class AuthService {
@@ -16,7 +16,7 @@ export class AuthService {
 
   private async hashPassword(password: string, salt?: string): Promise<string> {
     if (!salt) {
-      const saltBuffer = (await randomBytes(16)) as Buffer;
+      const saltBuffer =  randomBytes(16);
       salt = saltBuffer.toString('hex');
     }
 

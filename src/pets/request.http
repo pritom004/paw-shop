@@ -17,4 +17,17 @@ Content-Type: application/json
 
 
 ### Get pets with filters
-GET http://localhost:3000/pets?minPrice=20&maxPrice=100&breed="Golden Retriever"&city="Dhaka"
+GET http://localhost:3000/pets?minPrice=20&breed=Golden Retriever&city=Dhaka
+
+### Update pet listing
+PATCH http://localhost:3000/pets/9b90cc0c-3b49-4b39-af72-785695daea77
+Content-Type: application/json
+
+{
+  "price": 25000.00
+}
+
+
+### Delete a pet 
+DELETE http://localhost:3000/pets/3859c4f3-a0ee-42c7-a59a-def8659182f3
+
