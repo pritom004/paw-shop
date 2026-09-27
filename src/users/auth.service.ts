@@ -1,7 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -40,7 +40,7 @@ export class AuthService {
     const users = await this.userService.findAll(email);
 
     if (users.length === 0) {
-      throw new NotFoundException('User not found!');
+      throw new BadRequestException('User not found!');
     }
 
     const user = users[0];

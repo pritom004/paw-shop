@@ -9,6 +9,7 @@ import {
   Delete,
   UnauthorizedException,
   UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -19,7 +20,7 @@ import { Serialize } from './interceptors/serialize.interceptor';
 import { UserDto } from './dto/user.dto';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { AdminGuard } from 'src/guards/admin.guard';
+import { AdminGuard } from '../guards/admin.guard';
 
 @Serialize(UserDto)
 @Controller('users')
@@ -37,6 +38,7 @@ export class UsersController {
     return this.authService.register(body.name, body.email, body.password);
   }
 
+  @HttpCode(200)
   @Post('/login')
   async login(@Body() body: LoginDto, @Session() session: any) {
     const { email, password } = body;
@@ -53,6 +55,7 @@ export class UsersController {
     session.userId = null;
   }
 
+  @HttpCode(200)
   @Get('/whoami')
   whoami(@CurrentUser() user: any) {
     if (!user) {
