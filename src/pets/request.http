@@ -3,15 +3,15 @@ POST http://localhost:3000/pets
 Content-Type: application/json
 
 {
-    "name": "Buddy",
+    "name": "Buddy2",
     "price": 45000.00,
     "breed": "Golden Retriever",
-    "slug": "buddy-golden-retriever",
+    "slug": "buddy-golden-retriever1",
     "description": "Friendly and playful Golden Retriever, perfect for families.",
     "isAvailable": true,
     "city": "Dhaka",
     "address": "Dhanmondi, Dhaka",
-    "image": "https://example.com/images/buddy.jpg",
+    "images": ["https://example.com/images/buddy.jpg", "https://example.com/images/tom.jpg"],
     "age": 1.5
   }
 

@@ -4,7 +4,10 @@ import {
   Entity,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('pets')
 export class Pet {
@@ -38,12 +41,31 @@ export class Pet {
   @Column()
   address!: string;
 
-  @Column()
-  image!: string;
+@Column({
+  type: 'text',
+  transformer: {
+    to: (value: string[] | null) => (value ? JSON.stringify(value) : null),
+    from: (value: string | null) => {
+      if (!value) return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return []; 
+      }
+    }
+  }
+})
+images!: string[];
 
   @CreateDateColumn()
   createdAt!: Date;
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @JoinColumn({
+    name: "user_id"
+  })
+  @ManyToOne(() => User, user => user.pets)
+  user!: User
 }

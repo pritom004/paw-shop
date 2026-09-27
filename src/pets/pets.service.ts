@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Pet } from './entities/pet.entity';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { FindAllPetsDto } from './dto/find-all-pets.dto';
 
 @Injectable()
@@ -13,10 +13,21 @@ export class PetsService {
     private readonly repo: Repository<Pet>,
   ) {}
 
-  create(createPetDto: CreatePetDto) {
-    const pet = this.repo.create(createPetDto);
+ async create(createPetDto: CreatePetDto) {
+    try {
+     const petInstance = this.repo.create(createPetDto);
+   const pet = await this.repo.save(petInstance);
 
-    return this.repo.save(pet);
+return pet;
+   } catch (error) {
+   
+    
+      if(error instanceof QueryFailedError){
+        throw new ConflictException("A pet with this slug already exists");
+      }else{
+        throw new InternalServerErrorException("Unaccepted server error")
+      }
+   }
   }
 
   async findAll(findAllPetsDto: FindAllPetsDto) {

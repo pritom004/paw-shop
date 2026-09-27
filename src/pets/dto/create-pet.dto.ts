@@ -1,5 +1,5 @@
 import { Transform } from "class-transformer";
-import {IsString, IsOptional, IsTaxId, Length, IsNumber, MinLength, IsNotEmpty, IsBoolean, Min} from "class-validator";
+import {IsString, IsOptional, Length, IsNumber, MinLength, IsNotEmpty, IsBoolean, Min, IsArray} from "class-validator";
 
 export class CreatePetDto {
 
@@ -28,9 +28,10 @@ export class CreatePetDto {
     @IsNotEmpty({message: "Address is required"})
     address!: string;
 
-    @IsString()
+    @IsArray()
+    @IsString({each: true})
     @IsOptional()
-    image!: string;
+    images!: string[];
 
     @IsString()
     @IsOptional()

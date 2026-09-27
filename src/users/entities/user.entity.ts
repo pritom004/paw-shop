@@ -2,9 +2,11 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Pet } from '../../pets/entities/pet.entity';
 
 @Entity('users')
 export class User {
@@ -28,4 +30,8 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  
+  @OneToMany(() => Pet, pet => pet.user)
+  pets!: Pet[]
 }
