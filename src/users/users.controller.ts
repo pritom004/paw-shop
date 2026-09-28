@@ -21,6 +21,8 @@ import { UserDto } from './dto/user.dto';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { AdminGuard } from '../guards/admin.guard';
+import { AccountOwnerGuard } from '../guards/account-owner.guard';
+import { AuthGuard } from '../guards/auth.guard';
 
 @Serialize(UserDto)
 @Controller('users')
@@ -35,7 +37,9 @@ export class UsersController {
 
   @Post('/register')
   register(@Body() body: CreateUserDto) {
-    return this.authService.register(body.name, body.email, body.password);
+    
+    
+  return this.authService.register(body.name, body.email, body.password);
   }
 
   @HttpCode(200)
@@ -50,13 +54,16 @@ export class UsersController {
     return user;
   }
 
+  @HttpCode(200)
   @Post('/logout')
+  @UseGuards(AuthGuard)
   logout(@Session() session: any) {
     session.userId = null;
   }
 
   @HttpCode(200)
   @Get('/whoami')
+  @UseGuards(AuthGuard)
   whoami(@CurrentUser() user: any) {
     if (!user) {
       throw new UnauthorizedException('Authentication required');
@@ -67,19 +74,20 @@ export class UsersController {
 
   // Administrator Routes
 
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard, AccountOwnerGuard)
+  @HttpCode(200)
   @Delete(':id')
   removeUser(@Param('id') id: string) {
     return this.usersService.remove(id);
