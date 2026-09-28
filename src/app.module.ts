@@ -14,6 +14,7 @@ import { User } from './users/entities/user.entity';
 import { Pet } from './pets/entities/pet.entity';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { OrdersModule } from './orders/orders.module';
 
 const cookieSession = require('cookie-session');
 
@@ -37,6 +38,7 @@ const cookieSession = require('cookie-session');
       },
       inject: [ConfigService],
     }),
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [

@@ -6,8 +6,10 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { OrderItem } from '../../orders/entities/order-item.entity';
 
 @Entity('pets')
 export class Pet {
@@ -68,4 +70,8 @@ images!: string[];
   })
   @ManyToOne(() => User, user => user.pets)
   user!: User
+
+  @OneToMany(() => OrderItem, (orderItem) => orderItem.pet)
+  orderItems!: OrderItem[]
+
 }

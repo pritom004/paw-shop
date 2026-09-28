@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Pet } from '../../pets/entities/pet.entity';
+import { Order } from '../../orders/entities/order.entity';
 
 @Entity('users')
 export class User {
@@ -22,7 +23,7 @@ export class User {
   @Column()
   password!: string;
 
-  @Column({default: false})
+  @Column({ default: false })
   admin!: boolean;
 
   @CreateDateColumn()
@@ -31,7 +32,9 @@ export class User {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  
-  @OneToMany(() => Pet, pet => pet.user)
-  pets!: Pet[]
+  @OneToMany(() => Pet, (pet) => pet.user)
+  pets!: Pet[];
+
+  @OneToMany(() => Order, (order) => order.user)
+  orders!: Order[];
 }
