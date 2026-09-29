@@ -4,6 +4,8 @@ import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { FindAllPetsDto } from './dto/find-all-pets.dto';
 import { AuthGuard } from '../guards/auth.guard';
+import { CurrentUser } from '../users/decorators/current-user.decorator';
+import { User } from '../users/entities/user.entity';
 
 @UseGuards(AuthGuard)
 @Controller('pets')
@@ -11,9 +13,9 @@ export class PetsController {
   constructor(private readonly petsService: PetsService) {}
 
   @Post()
-  createPetListing(@Body() createPetDto: CreatePetDto) {
+  create(@Body() createPetDto: CreatePetDto, @CurrentUser() user: User) {
     
-    return this.petsService.create(createPetDto);
+    return this.petsService.create(createPetDto, user);
   }
 
   @Get()

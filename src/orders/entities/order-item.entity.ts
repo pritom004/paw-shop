@@ -9,8 +9,6 @@ export class OrderItem {
     @PrimaryGeneratedColumn()
     id!: string;
 
-    quantity!: number;
-
     price!: number;
 
     @ManyToOne(() => Order, (order) => order.orderItems)

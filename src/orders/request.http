@@ -1,0 +1,10 @@
+### Create a order for some pets
+POST http://localhost:3000/orders
+Content-Type: application/json
+
+{
+    "petIds": ["12098047-ab3d-4b71-9b93-6860d04d6d16", "b544c29f-6085-4cb7-8440-4e35d8d7f923", "02ae02db-8d23-4ed4-9749-3133de3c1e9c"],
+    "city": "Chittagong",
+    "address": "12 Agrabad Commercial Area, Chittagong",
+    "phoneNumber": "01712345678"
+}

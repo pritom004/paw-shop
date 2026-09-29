@@ -15,6 +15,8 @@ import { Pet } from './pets/entities/pet.entity';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { OrdersModule } from './orders/orders.module';
+import { OrderItem } from './orders/entities/order-item.entity';
+import { Order } from './orders/entities/order.entity';
 
 const cookieSession = require('cookie-session');
 
@@ -33,7 +35,7 @@ const cookieSession = require('cookie-session');
           type: 'better-sqlite3',
           database: configService.get<string>('DATABASE_URL'),
           synchronize: true,
-          entities: [User, Pet],
+          entities: [User, Pet, Order, OrderItem],
         };
       },
       inject: [ConfigService],

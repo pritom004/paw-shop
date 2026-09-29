@@ -1,40 +1,45 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Pet } from './entities/pet.entity';
 import { QueryFailedError, Repository } from 'typeorm';
 import { FindAllPetsDto } from './dto/find-all-pets.dto';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class PetsService {
   constructor(
     @InjectRepository(Pet)
-    private readonly repo: Repository<Pet>,
+    private readonly petRepository: Repository<Pet>,
   ) {}
 
- async create(createPetDto: CreatePetDto) {
+  async create(createPetDto: CreatePetDto, user: User) {
     try {
-     const petInstance = this.repo.create(createPetDto);
-   const pet = await this.repo.save(petInstance);
+      const petInstance = this.petRepository.create(createPetDto);
+      petInstance.user = user;
+      const pet = await this.petRepository.save(petInstance);
 
-return pet;
-   } catch (error) {
-   
-    
-      if(error instanceof QueryFailedError){
-        throw new ConflictException("A pet with this slug already exists");
-      }else{
-        throw new InternalServerErrorException("Unaccepted server error")
+      return pet;
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        throw new ConflictException('A pet with this slug already exists');
+      } else {
+        throw new InternalServerErrorException('Unaccepted server error');
       }
-   }
+    }
   }
 
   async findAll(findAllPetsDto: FindAllPetsDto) {
     const { name, age, minPrice, maxPrice, breed, city, limit, offset } =
       findAllPetsDto;
 
-    const query = this.repo.createQueryBuilder('pet');
+    const query = this.petRepository.createQueryBuilder('pet');
 
     if (name) {
       query.andWhere('pet.name LIKE :name', { name: `%${name}%` });
@@ -72,7 +77,7 @@ return pet;
   }
 
   async findOne(id: string) {
-    const pet = await this.repo.findOne({
+    const pet = await this.petRepository.findOne({
       where: { id },
     });
 
@@ -84,7 +89,7 @@ return pet;
   }
 
   async update(id: string, updatePetDto: UpdatePetDto) {
-    const pet = await this.repo.findOne({
+    const pet = await this.petRepository.findOne({
       where: { id },
     });
 
@@ -98,14 +103,14 @@ return pet;
   }
 
   async remove(id: string) {
-    const pet = await this.repo.findOne({
-      where: {id}
-    })
+    const pet = await this.petRepository.findOne({
+      where: { id },
+    });
 
-    if(!pet){
-      throw new NotFoundException("Pet not found!")
+    if (!pet) {
+      throw new NotFoundException('Pet not found!');
     }
 
-    return this.repo.remove(pet);
+    return this.petRepository.remove(pet);
   }
 }
