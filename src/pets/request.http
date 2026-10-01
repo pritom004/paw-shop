@@ -6,7 +6,7 @@ Content-Type: application/json
     "name": "Buddy5",
     "price": 45000.00,
     "breed": "Golden Retriever",
-    "slug": "buddy-golden-retriever6",
+    "slug": "buddy-golden-retriever8",
     "description": "Friendly and playful Golden Retriever, perfect for families.",
     "isAvailable": true,
     "city": "Dhaka",

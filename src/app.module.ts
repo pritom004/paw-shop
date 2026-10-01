@@ -3,6 +3,7 @@ import {
   ValidationPipe,
   NestModule,
   MiddlewareConsumer,
+  ClassSerializerInterceptor,
 } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -12,11 +13,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './users/entities/user.entity';
 import { Pet } from './pets/entities/pet.entity';
-import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE, Reflector } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { OrdersModule } from './orders/orders.module';
 import { OrderItem } from './orders/entities/order-item.entity';
 import { Order } from './orders/entities/order.entity';
+import { PaymentsModule } from './payments/payments.module';
 
 const cookieSession = require('cookie-session');
 
@@ -41,6 +43,7 @@ const cookieSession = require('cookie-session');
       inject: [ConfigService],
     }),
     OrdersModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -54,6 +57,13 @@ const cookieSession = require('cookie-session');
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useFactory: (reflector: Reflector) => {
+        return new ClassSerializerInterceptor(reflector)
+      },
+      inject: [Reflector]
+    }
   ],
 })
 export class AppModule implements NestModule {

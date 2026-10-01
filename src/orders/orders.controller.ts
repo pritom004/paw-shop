@@ -6,6 +6,7 @@ import { CurrentUser } from '../users/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { AuthGuard } from '../guards/auth.guard';
 
+
 @UseGuards(AuthGuard)
 @Controller('orders')
 export class OrdersController {
@@ -31,7 +32,7 @@ export class OrdersController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(+id);
+    return this.ordersService.findOne(id);
   }
 
   @Patch(':id')

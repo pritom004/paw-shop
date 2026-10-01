@@ -99,7 +99,7 @@ export class PetsService {
 
     Object.assign(pet, updatePetDto);
 
-    return pet;
+    return this.petRepository.save(pet);
   }
 
   async remove(id: string) {

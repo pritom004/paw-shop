@@ -1,7 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { Repository } from 'typeorm';
+import { FindOneOptions, Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PetsService } from '../pets/pets.service';
@@ -15,7 +19,7 @@ export class OrdersService {
     private readonly orderRepository: Repository<Order>,
     @InjectRepository(OrderItem)
     private readonly orderItemRepository: Repository<OrderItem>,
-    private readonly petsService: PetsService
+    private readonly petsService: PetsService,
   ) {}
 
   async create(createOrderDto: CreateOrderDto, user: User) {
@@ -38,7 +42,7 @@ export class OrdersService {
           `The pet ${pet.name} is no longer available for adoption`,
         );
       }
-      await this.petsService.update(pet.id, { isAvailable: false });
+      await this.petsService.update(pet.id, { isAvailable:false });
 
       const orderItem = this.orderItemRepository.create({
         price: pet.price,
@@ -60,8 +64,19 @@ export class OrdersService {
     return `This action returns all orders`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
+  async findOne(id: string, options?: FindOneOptions<Order>) {
+    const order = await this.orderRepository.findOne({
+      ...(options as object),
+      where: {
+        id,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found!');
+    }
+
+    return order;
   }
 
   update(id: number, updateOrderDto: UpdateOrderDto) {

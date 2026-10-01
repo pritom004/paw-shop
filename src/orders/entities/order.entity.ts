@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, Pri
 import { User } from '../../users/entities/user.entity';
 import { OrderItem } from './order-item.entity';
 
-enum OrderStatus {
+export enum OrderStatus {
   PENDING = 'PENDING',
   PROCESSING = 'PROCESSING',
   SHIPPED = 'SHIPPED',
@@ -10,19 +10,50 @@ enum OrderStatus {
   CANCELED = 'CANCELED',
 }
 
+export enum PaymentMethod {
+  CASH_ON_DELIVERY = 'CASH_ON_DELIVERY',
+  CARD = 'CARD',
+  PAYPAL = 'PAYPAL',
+}
+
+export enum PaymentStatus {
+  UNPAID = 'UNPAID',
+  PAID = 'PAID',
+  FAILED = 'FAILED',
+  REFUNDED = 'REFUNDED',
+}
+
 @Entity()
 export class Order {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'decimal' })
+  @Column({ type: 'decimal', precision: 10, scale: 2})
   totalAmount!: number;
 
   @Column({
+    type: 'simple-enum',
     enum: OrderStatus,
     default: OrderStatus.PENDING,
   })
-  orderStatus!: string;
+  orderStatus!: OrderStatus;
+
+  @Column({
+    type: 'simple-enum',
+    enum: PaymentStatus,
+    default: PaymentStatus.UNPAID
+  })
+  paymentStatus!: PaymentStatus;
+
+  @Column({nullable: true})
+  stripePaymentIntentId!: string;
+
+  @Column({
+    type: 'simple-enum',
+    enum: PaymentMethod,
+    nullable: true,
+  })
+  paymentMethod!: PaymentMethod;
 
   @Column()
   city!: string;
@@ -39,6 +70,7 @@ export class Order {
   @Column()
   phoneNumber!: string;
 
+  
   @JoinColumn({name: "user_id"})
   @ManyToOne(() => User, (user) => user.orders)
   user!: User;
