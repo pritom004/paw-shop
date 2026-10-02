@@ -6,7 +6,7 @@ import {
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FindOneOptions, Repository } from 'typeorm';
-import { Order } from './entities/order.entity';
+import { Order, OrderStatus, PaymentMethod } from './entities/order.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PetsService } from '../pets/pets.service';
 import { OrderItem } from './entities/order-item.entity';
@@ -42,7 +42,7 @@ export class OrdersService {
           `The pet ${pet.name} is no longer available for adoption`,
         );
       }
-      await this.petsService.update(pet.id, { isAvailable:false });
+      await this.petsService.update(pet.id, { isAvailable: false });
 
       const orderItem = this.orderItemRepository.create({
         price: pet.price,
@@ -61,7 +61,7 @@ export class OrdersService {
   }
 
   findAll() {
-    return `This action returns all orders`;
+    return this.orderRepository.find()
   }
 
   async findOne(id: string, options?: FindOneOptions<Order>) {
@@ -83,7 +83,29 @@ export class OrdersService {
     return `This action updates a #${id} order`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} order`;
+  async remove(id: string) {
+      const order = await this.orderRepository.findOne({
+        where: {id}
+      })
+
+      if(!order){
+        throw new NotFoundException("Order not found!");
+      }
+
+      await this.orderRepository.delete(order);
+  }
+
+  async markAsProcessing(orderId: string, paymentMethod: PaymentMethod) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found!');
+    }
+
+    order.orderStatus = OrderStatus.PROCESSING;
+    order.paymentMethod = paymentMethod;
+
+    return this.orderRepository.save(order);
   }
 }

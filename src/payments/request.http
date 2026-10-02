@@ -3,5 +3,5 @@ POST http://localhost:3000/payments/orders/2331ed26-6fac-4ee7-a0a3-4a1e572da05e/
 Content-Type: application/json
 
 {
-    "paymentMethod": "CARD"
+    "paymentMethod": "CASH_ON_DELIVERY"
 }
