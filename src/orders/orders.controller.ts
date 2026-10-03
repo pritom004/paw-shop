@@ -41,7 +41,7 @@ export class OrdersController {
   @Patch(':id')
   @HttpCode(200)
   update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.ordersService.update(+id, updateOrderDto);
+    return this.ordersService.update(id, updateOrderDto);
   }
 
   @Delete(':id')

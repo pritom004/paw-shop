@@ -61,7 +61,7 @@ export class OrdersService {
   }
 
   findAll() {
-    return this.orderRepository.find()
+    return this.orderRepository.find();
   }
 
   async findOne(id: string, options?: FindOneOptions<Order>) {
@@ -69,7 +69,7 @@ export class OrdersService {
       ...(options as object),
       where: {
         id,
-      },
+      }
     });
 
     if (!order) {
@@ -79,20 +79,29 @@ export class OrdersService {
     return order;
   }
 
-  update(id: number, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
+  async update(id: string, updateOrderDto: UpdateOrderDto) {
+    const order = await this.orderRepository.findOne({
+      where: { id },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found!');
+    }
+
+    Object.assign(order, updateOrderDto);
+
+    return this.orderRepository.save(order);
   }
 
   async remove(id: string) {
-      const order = await this.orderRepository.findOne({
-        where: {id}
-      })
+    const order = await this.orderRepository.findOne({
+      where: { id },
+    });
 
-      if(!order){
-        throw new NotFoundException("Order not found!");
-      }
+    if (!order) {
+      throw new NotFoundException('Order not found!');
+    }
 
-      await this.orderRepository.delete(order);
+    await this.orderRepository.delete(order);
   }
 
   async markAsProcessing(orderId: string, paymentMethod: PaymentMethod) {
