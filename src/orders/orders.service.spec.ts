@@ -5,7 +5,11 @@ import { Order, OrderStatus, PaymentMethod } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { PetsService } from '../pets/pets.service';
 import { Repository } from 'typeorm';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -137,7 +141,12 @@ describe('OrdersService', () => {
         phoneNumber: '1234567890',
       };
       const user = { id: 'user1' } as User;
-      const pet1 = { id: 'pet1', name: 'Pet1', price: 100, isAvailable: false };
+      const pet1 = {
+        id: 'pet1',
+        name: 'Pet1',
+        price: 100,
+        isAvailable: false,
+      };
 
       (mockPetsService.findOne as jest.Mock).mockResolvedValue(pet1);
 
@@ -153,8 +162,32 @@ describe('OrdersService', () => {
       (mockOrderRepository.find as jest.Mock).mockResolvedValue(orders);
 
       const result = await service.findAll();
+
       expect(result).toEqual(orders);
       expect(mockOrderRepository.find).toHaveBeenCalled();
+    });
+  });
+
+  describe('findAllUserOrders', () => {
+    it('should return all orders belonging to a user', async () => {
+      const userId = 'user1';
+      const orders = [{ id: '1' }, { id: '2' }];
+      (mockOrderRepository.find as jest.Mock).mockResolvedValue(orders);
+
+      const result = await service.findAllUserOrders(userId);
+
+      expect(mockOrderRepository.find).toHaveBeenCalledWith({
+        where: { user: { id: userId } },
+      });
+      expect(result).toEqual(orders);
+    });
+
+    it('should return an empty array if user has no orders', async () => {
+      (mockOrderRepository.find as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.findAllUserOrders('user1');
+
+      expect(result).toEqual([]);
     });
   });
 
@@ -164,6 +197,7 @@ describe('OrdersService', () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
 
       const result = await service.findOne('1');
+
       expect(result).toEqual(order);
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
         where: { id: '1' },
@@ -182,10 +216,47 @@ describe('OrdersService', () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
 
       await service.findOne('1', { relations: { orderItems: true } });
+
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
         ...options,
         where: { id: '1' },
       });
+    });
+  });
+
+  describe('findUserOrder', () => {
+    it('should return the order if it belongs to the user', async () => {
+      const order = {
+        id: '1',
+        user: { id: 'user1' },
+        orderItems: [],
+      };
+      (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
+
+      const result = await service.findUserOrder('1', 'user1');
+
+      expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+        relations: { user: true, orderItems: true },
+      });
+      expect(result).toEqual(order);
+    });
+
+    it('should throw NotFoundException if order not found', async () => {
+      (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.findUserOrder('1', 'user1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw UnauthorizedException if order belongs to another user', async () => {
+      const order = { id: '1', user: { id: 'anotherUser' } };
+      (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
+
+      await expect(service.findUserOrder('1', 'user1')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
@@ -218,9 +289,9 @@ describe('OrdersService', () => {
     it('should throw NotFoundException if order not found', async () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.update('1', { city: 'New City' })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.update('1', { city: 'New City' }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should only update provided fields and preserve the rest', async () => {
@@ -252,6 +323,7 @@ describe('OrdersService', () => {
       (mockOrderRepository.delete as jest.Mock).mockResolvedValue(undefined);
 
       await service.remove('1');
+
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
         where: { id: '1' },
       });

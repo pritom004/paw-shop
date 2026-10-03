@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -64,6 +65,19 @@ export class OrdersService {
     return this.orderRepository.find();
   }
 
+  findAllUserOrders(userId: string){
+
+
+return this.orderRepository.find({
+  where: {
+    user: {
+      id: userId
+    }
+  }
+})
+
+  }
+
   async findOne(id: string, options?: FindOneOptions<Order>) {
     const order = await this.orderRepository.findOne({
       ...(options as object),
@@ -78,6 +92,31 @@ export class OrdersService {
 
     return order;
   }
+
+
+    async findUserOrder(id: string, userId: string) {
+    const order = await this.orderRepository.findOne({
+      where: {
+        id,
+      },
+      relations: {
+        user: true,
+        orderItems: true
+      }
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found!');
+    }
+
+    if(order.user.id !== userId){
+      throw new UnauthorizedException("You are not authorized to view this order.");
+    }
+
+    return order;
+  }
+
+
 
   async update(id: string, updateOrderDto: UpdateOrderDto) {
     const order = await this.orderRepository.findOne({
