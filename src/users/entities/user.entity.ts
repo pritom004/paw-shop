@@ -26,7 +26,6 @@ export class User {
   password!: string;
 
   @Column({ default: false })
-  @Exclude()
   admin!: boolean;
 
   @CreateDateColumn()

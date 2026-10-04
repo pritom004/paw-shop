@@ -94,7 +94,7 @@ return this.orderRepository.find({
   }
 
 
-    async findUserOrder(id: string, userId: string) {
+    async findUserOrder(id: string, user: User) {
     const order = await this.orderRepository.findOne({
       where: {
         id,
@@ -109,7 +109,7 @@ return this.orderRepository.find({
       throw new NotFoundException('Order not found!');
     }
 
-    if(order.user.id !== userId){
+    if(order.user.id !== user.id && user.admin !== true){
       throw new UnauthorizedException("You are not authorized to view this order.");
     }
 

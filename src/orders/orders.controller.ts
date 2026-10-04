@@ -44,7 +44,7 @@ export class OrdersController {
   @Get(':id')
   @HttpCode(200)
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.ordersService.findUserOrder(id, user.id);
+    return this.ordersService.findUserOrder(id, user);
   }
 
   @Patch(':id')

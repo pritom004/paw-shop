@@ -37,9 +37,7 @@ export class UsersController {
 
   @Post('/register')
   register(@Body() body: CreateUserDto) {
-    
-    
-  return this.authService.register(body.name, body.email, body.password);
+    return this.authService.register(body.name, body.email, body.password);
   }
 
   @HttpCode(200)
@@ -80,7 +78,7 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
-  @UseGuards(AuthGuard, AdminGuard)
+  @UseGuards(AuthGuard, AccountOwnerGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);

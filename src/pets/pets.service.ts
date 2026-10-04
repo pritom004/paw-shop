@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -18,6 +19,18 @@ export class PetsService {
     @InjectRepository(Pet)
     private readonly petRepository: Repository<Pet>,
   ) {}
+
+  private async findOwnedPet(id: string, user: User): Promise<Pet> {
+  const pet = await this.petRepository.findOne({ where: { id } });
+
+  if (!pet) throw new NotFoundException('Pet not found');
+
+  if (pet.user.id !== user.id) {
+    throw new ForbiddenException('You do not own this pet');
+  }
+
+  return pet;
+}
 
   async create(createPetDto: CreatePetDto, user: User) {
     try {
@@ -79,6 +92,9 @@ export class PetsService {
   async findOne(id: string) {
     const pet = await this.petRepository.findOne({
       where: { id },
+      relations: {
+        user: true
+      }
     });
 
     if (!pet) {
@@ -88,13 +104,21 @@ export class PetsService {
     return pet;
   }
 
-  async update(id: string, updatePetDto: UpdatePetDto) {
-    const pet = await this.petRepository.findOne({
-      where: { id },
-    });
+  async updateUserPet(id: string, updatePetDto: UpdatePetDto, user: User) {
+    const pet = await this.findOwnedPet(id, user)
 
-    if (!pet) {
-      throw new NotFoundException('Pet not found!');
+
+    Object.assign(pet, updatePetDto);
+
+    return this.petRepository.save(pet);
+  }
+
+  
+  async update(id: string, updatePetDto: UpdatePetDto) {
+    const pet = await this.petRepository.findOne({where: {id}})
+
+    if(!pet){
+      throw new NotFoundException("Pet not found!");
     }
 
     Object.assign(pet, updatePetDto);
@@ -102,14 +126,9 @@ export class PetsService {
     return this.petRepository.save(pet);
   }
 
-  async remove(id: string) {
-    const pet = await this.petRepository.findOne({
-      where: { id },
-    });
+  async remove(id: string, user: User) {
+    const pet = await this.findOwnedPet(id, user);
 
-    if (!pet) {
-      throw new NotFoundException('Pet not found!');
-    }
 
     return this.petRepository.remove(pet);
   }
