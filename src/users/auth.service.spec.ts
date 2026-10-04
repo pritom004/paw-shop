@@ -6,6 +6,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { faker } from '@faker-js/faker';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -34,65 +35,106 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('should hash password and create a new user', async () => {
+      const name = faker.person.fullName();
+      const email = faker.internet.email();
+      const password = 'Password1!';
+      const userId = faker.string.uuid();
+
       (mockUsersService.findAll as jest.Mock).mockResolvedValue([]);
       (mockUsersService.create as jest.Mock).mockImplementation((dto) =>
-        Promise.resolve({ id: '1', ...dto }),
+        Promise.resolve({ id: userId, ...dto }),
       );
 
-      const result = await service.register(
-        'John Doe',
-        'john@example.com',
-        'Password1!',
-      );
+      const result = await service.register(name, email, password);
 
-      expect(mockUsersService.findAll).toHaveBeenCalledWith('john@example.com');
+      expect(mockUsersService.findAll).toHaveBeenCalledWith(email);
       expect(mockUsersService.create).toHaveBeenCalled();
 
       const createArg = (mockUsersService.create as jest.Mock).mock.calls[0][0];
-      expect(createArg.name).toBe('John Doe');
-      expect(createArg.email).toBe('john@example.com');
+      expect(createArg.name).toBe(name);
+      expect(createArg.email).toBe(email);
       expect(createArg.password).toMatch(/^[a-f0-9]+\.[a-f0-9]+$/);
 
       expect(result).toEqual(
         expect.objectContaining({
-          id: '1',
-          name: 'John Doe',
-          email: 'john@example.com',
+          id: userId,
+          name,
+          email,
         }),
       );
     });
 
     it('should throw ConflictException if email is already in use', async () => {
-      (mockUsersService.findAll as jest.Mock).mockResolvedValue([{ id: '1' }]);
+      const email = faker.internet.email();
+      (mockUsersService.findAll as jest.Mock).mockResolvedValue([
+        { id: faker.string.uuid() },
+      ]);
 
       await expect(
-        service.register('John Doe', 'john@example.com', 'Password1!'),
+        service.register('John Doe', email, 'Password1!'),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should not call create if email is already in use', async () => {
+      const email = faker.internet.email();
+      (mockUsersService.findAll as jest.Mock).mockResolvedValue([
+        { id: faker.string.uuid() },
+      ]);
+
+      await expect(
+        service.register('John Doe', email, 'Password1!'),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockUsersService.create).not.toHaveBeenCalled();
+    });
+
+    it('should generate different salts for the same password', async () => {
+      const email1 = faker.internet.email();
+      const email2 = faker.internet.email();
+      const password = 'Password1!';
+
+      (mockUsersService.findAll as jest.Mock).mockResolvedValue([]);
+      (mockUsersService.create as jest.Mock).mockImplementation((dto) =>
+        Promise.resolve({ id: faker.string.uuid(), ...dto }),
+      );
+
+      await service.register('User One', email1, password);
+      await service.register('User Two', email2, password);
+
+      const firstHash = (mockUsersService.create as jest.Mock).mock.calls[0][0]
+        .password;
+      const secondHash = (mockUsersService.create as jest.Mock).mock.calls[1][0]
+        .password;
+
+      expect(firstHash).not.toBe(secondHash);
     });
   });
 
   describe('login', () => {
     it('should return user when credentials are valid', async () => {
-      // Register first to obtain a valid hashed password
+      const name = faker.person.fullName();
+      const email = faker.internet.email();
+      const password = 'Password1!';
+      const userId = faker.string.uuid();
+
+      // Register to obtain a valid hashed password
       (mockUsersService.findAll as jest.Mock).mockResolvedValue([]);
       (mockUsersService.create as jest.Mock).mockImplementation((dto) =>
-        Promise.resolve({ id: '1', ...dto }),
+        Promise.resolve({ id: userId, ...dto }),
       );
 
-      const password = 'Password1!';
-      await service.register('John Doe', 'john@example.com', password);
-      const hashedPassword = (mockUsersService.create as jest.Mock).mock
-        .calls[0][0].password;
+      const registeredUser = await service.register(name, email, password);
+      const hashedPassword = registeredUser.password;
 
       const user = {
-        id: '1',
-        name: 'John Doe',
-        email: 'john@example.com',
+        id: userId,
+        name,
+        email,
         password: hashedPassword,
       };
       (mockUsersService.findAll as jest.Mock).mockResolvedValue([user]);
 
-      const result = await service.login('john@example.com', password);
+      const result = await service.login(email, password);
       expect(result).toEqual(user);
     });
 
@@ -100,37 +142,41 @@ describe('AuthService', () => {
       (mockUsersService.findAll as jest.Mock).mockResolvedValue([]);
 
       await expect(
-        service.login('nonexistent@example.com', 'Password1!'),
+        service.login(faker.internet.email(), 'Password1!'),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw UnauthorizedException if password is incorrect', async () => {
+      const name = faker.person.fullName();
+      const email = faker.internet.email();
+      const password = 'Password1!';
+      const userId = faker.string.uuid();
+
       (mockUsersService.findAll as jest.Mock).mockResolvedValue([]);
       (mockUsersService.create as jest.Mock).mockImplementation((dto) =>
-        Promise.resolve({ id: '1', ...dto }),
+        Promise.resolve({ id: userId, ...dto }),
       );
 
-      await service.register('John Doe', 'john@example.com', 'Password1!');
-      const hashedPassword = (mockUsersService.create as jest.Mock).mock
-        .calls[0][0].password;
+      const registeredUser = await service.register(name, email, password);
+      const hashedPassword = registeredUser.password;
 
       const user = {
-        id: '1',
-        name: 'John Doe',
-        email: 'john@example.com',
+        id: userId,
+        name,
+        email,
         password: hashedPassword,
       };
       (mockUsersService.findAll as jest.Mock).mockResolvedValue([user]);
 
       await expect(
-        service.login('john@example.com', 'WrongPassword1!'),
+        service.login(email, 'WrongPassword1!'),
       ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('logout', () => {
     it('should return logout successful message', async () => {
-      const result = await service.logout('some-id');
+      const result = await service.logout(faker.string.uuid());
       expect(result).toBe('Logout successful');
     });
   });

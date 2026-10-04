@@ -5,37 +5,37 @@ export class FindAllPetsDto {
 
   @IsString()
   @IsOptional()
-  name!: string;
+  name?: string;
 
   @IsNumber()
   @IsOptional()
-  age!: string;
+  age?: number;
 
   @IsString()
   @IsOptional()
-  breed!: string;
+  breed?: string;
 
   @IsString()
   @IsOptional()
-  city!: string;
+  city?: string;
 
   @IsNumber()
   @IsOptional()
   @Transform(({ value }) => parseFloat(value))
-  minPrice!: number;
+  minPrice?: number;
 
   @IsNumber()
   @IsOptional()
   @Transform(({ value }) => parseFloat(value))
-  maxPrice!: number;
+  maxPrice?: number;
 
   @IsNumber()
   @IsOptional()
   @Transform(({ value }) => parseInt(value))
-  limit!: number;
+  limit?: number;
 
   @IsNumber()
   @IsOptional()
   @Transform(({ value }) => parseInt(value))
-  offset!: number;
+  offset?: number;
 }

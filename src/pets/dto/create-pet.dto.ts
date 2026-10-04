@@ -31,15 +31,15 @@ export class CreatePetDto {
     @IsArray()
     @IsString({each: true})
     @IsOptional()
-    images!: string[];
+    images?: string[];
 
     @IsString()
     @IsOptional()
-    description!: string;
+    description?: string;
 
     @IsBoolean()
     @IsOptional()
-    isAvailable!: boolean;
+    isAvailable?: boolean;
 
     @IsString()
     @MinLength(3, {message: "Slug must be at lest 3 characters long"})

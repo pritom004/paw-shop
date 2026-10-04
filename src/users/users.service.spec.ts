@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
+import { faker } from '@faker-js/faker';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -36,11 +37,12 @@ describe('UsersService', () => {
   describe('create', () => {
     it('should create and save a user', async () => {
       const createUserDto = {
-        name: 'John',
-        email: 'john@example.com',
+        name: faker.person.fullName(),
+        email: faker.internet.email(),
         password: 'hashed',
       };
-      const user = { id: '1', ...createUserDto };
+      const user = { id: faker.string.uuid(), ...createUserDto };
+
       (mockRepository.create as jest.Mock).mockReturnValue(createUserDto);
       (mockRepository.save as jest.Mock).mockResolvedValue(user);
 
@@ -54,13 +56,14 @@ describe('UsersService', () => {
 
   describe('findAll', () => {
     it('should return users by email', async () => {
-      const users = [{ id: '1', email: 'john@example.com' }];
+      const email = faker.internet.email();
+      const users = [{ id: faker.string.uuid(), email }];
       (mockRepository.find as jest.Mock).mockResolvedValue(users);
 
-      const result = await service.findAll('john@example.com');
+      const result = await service.findAll(email);
 
       expect(mockRepository.find).toHaveBeenCalledWith({
-        where: { email: 'john@example.com' },
+        where: { email },
       });
       expect(result).toEqual(users);
     });
@@ -68,13 +71,14 @@ describe('UsersService', () => {
 
   describe('findOne', () => {
     it('should return a user if found', async () => {
-      const user = { id: '1', email: 'john@example.com' };
+      const id = faker.string.uuid();
+      const user = { id, email: faker.internet.email() };
       (mockRepository.findOne as jest.Mock).mockResolvedValue(user);
 
-      const result = await service.findOne('1');
+      const result = await service.findOne(id);
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
       expect(result).toEqual(user);
     });
@@ -82,29 +86,31 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user not found', async () => {
       (mockRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(faker.string.uuid())).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('update', () => {
     it('should update and save a user if found', async () => {
+      const id = faker.string.uuid();
       const user = {
-        id: '1',
-        name: 'John',
-        email: 'john@example.com',
+        id,
+        name: faker.person.fullName(),
+        email: faker.internet.email(),
         password: 'hashed',
       };
-    
-      const updateUserDto = { name: 'Jane' };
+      const updateUserDto = { name: faker.person.fullName() };
       const updatedUser = { ...user, ...updateUserDto };
 
       (mockRepository.findOne as jest.Mock).mockResolvedValue(user);
       (mockRepository.save as jest.Mock).mockResolvedValue(updatedUser);
 
-      const result = await service.update('1', updateUserDto);
+      const result = await service.update(id, updateUserDto);
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
       expect(mockRepository.save).toHaveBeenCalledWith(updatedUser);
       expect(result).toEqual(updatedUser);
@@ -114,21 +120,22 @@ describe('UsersService', () => {
       (mockRepository.findOne as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.update('1', { name: 'Jane' }),
+        service.update(faker.string.uuid(), { name: 'Jane' }),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('remove', () => {
     it('should remove a user if found', async () => {
-      const user = { id: '1', email: 'john@example.com' };
+      const id = faker.string.uuid();
+      const user = { id, email: faker.internet.email() };
       (mockRepository.findOne as jest.Mock).mockResolvedValue(user);
       (mockRepository.remove as jest.Mock).mockResolvedValue(user);
 
-      const result = await service.remove('1');
+      const result = await service.remove(id);
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
       expect(mockRepository.remove).toHaveBeenCalledWith(user);
       expect(result).toEqual(user);
@@ -137,7 +144,9 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user not found', async () => {
       (mockRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.remove('1')).rejects.toThrow(NotFoundException);
+      await expect(service.remove(faker.string.uuid())).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

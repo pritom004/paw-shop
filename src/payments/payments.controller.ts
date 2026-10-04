@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Headers,
@@ -29,10 +30,11 @@ export class PaymentsController {
     @Param('orderId') orderId: string,
     @CurrentUser() user: User,
   ) {
-    if (paymentMethod === PaymentMethod.CASH_ON_DELIVERY) {
-      await this.orderService.markAsProcessing(orderId, paymentMethod);
-      return { message: 'Order confirmed for cash on delivery' };
-    }
+
+      if(!PaymentsService.isValidPaymentMethod(paymentMethod)){
+        throw new BadRequestException("Payment method is not valid!");
+      }
+
 
     const order = await this.orderService.findOne(orderId, {
       relations: { user: true },
@@ -42,6 +44,11 @@ export class PaymentsController {
       throw new UnauthorizedException('Unauthorized request');
     }
 
+    if (paymentMethod === PaymentMethod.CASH_ON_DELIVERY) {
+      await this.orderService.markAsProcessing(orderId, paymentMethod);
+      return { message: 'Order confirmed for cash on delivery' };
+    }
+    
     const paymentIntent = await this.paymentService.createPaymentIntent(
       order,
       paymentMethod,
@@ -55,11 +62,21 @@ export class PaymentsController {
 
   @Post('webhook')
   @HttpCode(200)
+  
   async handleStripeWebhook(
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature: string,
   ) {
-    await this.handleStripeWebhook(req, signature);
+  
+        if(!req.rawBody){
+          throw new BadRequestException("rawBody is undefined")
+        }
+
+      if(!signature){
+        throw new BadRequestException("signature is undefined")
+      }
+
+    await this.paymentService.handleWebhook(req.rawBody, signature);
     return {
       received: true,
     };

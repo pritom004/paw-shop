@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Order, OrderStatus, PaymentMethod } from './entities/order.entity';
+import {
+  Order,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { PetsService } from '../pets/pets.service';
 import { Repository } from 'typeorm';
@@ -11,13 +16,28 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import { faker } from '@faker-js/faker';
 
 describe('OrdersService', () => {
   let service: OrdersService;
   let mockOrderRepository: Partial<Repository<Order>>;
   let mockOrderItemRepository: Partial<Repository<OrderItem>>;
   let mockPetsService: Partial<PetsService>;
+
+  const buildPet = (overrides: Partial<any> = {}) => ({
+    id: faker.string.uuid(),
+    name: faker.animal.cat(),
+    price: faker.number.float({ min: 10, max: 500 }),
+    isAvailable: true,
+    ...overrides,
+  });
+
+  const buildUser = (overrides: Partial<User> = {}): User =>
+    ({
+      id: faker.string.uuid(),
+      admin: false,
+      ...overrides,
+    } as User);
 
   beforeEach(async () => {
     mockOrderRepository = {
@@ -56,21 +76,22 @@ describe('OrdersService', () => {
   });
 
   describe('create', () => {
-    it('should create an order with order items and total amount', async () => {
+    it('should create an order with order items and computed total amount', async () => {
       const createOrderDto = {
         petIds: ['pet1', 'pet2'],
-        city: 'City',
-        address: 'Address',
-        phoneNumber: '1234567890',
+        city: faker.location.city(),
+        address: faker.location.streetAddress(),
+        phoneNumber: faker.phone.number(),
       };
-      const user = { id: 'user1' } as User;
+      const user = buildUser();
 
-      const pet1 = { id: 'pet1', name: 'Pet1', price: 100, isAvailable: true };
-      const pet2 = { id: 'pet2', name: 'Pet2', price: 200, isAvailable: true };
+      const pet1 = buildPet({ id: 'pet1', price: 100 });
+      const pet2 = buildPet({ id: 'pet2', price: 200 });
 
       (mockPetsService.findOne as jest.Mock).mockImplementation((id) => {
         if (id === 'pet1') return Promise.resolve(pet1);
         if (id === 'pet2') return Promise.resolve(pet2);
+        return Promise.resolve(null);
       });
       (mockPetsService.update as jest.Mock).mockResolvedValue(undefined);
 
@@ -81,10 +102,10 @@ describe('OrdersService', () => {
       );
 
       const order = {
-        id: 'order1',
-        city: 'City',
-        address: 'Address',
-        phoneNumber: '1234567890',
+        id: faker.string.uuid(),
+        city: createOrderDto.city,
+        address: createOrderDto.address,
+        phoneNumber: createOrderDto.phoneNumber,
       };
       (mockOrderRepository.create as jest.Mock).mockReturnValue(order);
       (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
@@ -93,9 +114,12 @@ describe('OrdersService', () => {
 
       const result = await service.create(createOrderDto, user);
 
+      // Each pet is fetched once
       expect(mockPetsService.findOne).toHaveBeenCalledTimes(2);
       expect(mockPetsService.findOne).toHaveBeenNthCalledWith(1, 'pet1');
       expect(mockPetsService.findOne).toHaveBeenNthCalledWith(2, 'pet2');
+
+      // Each pet is marked unavailable
       expect(mockPetsService.update).toHaveBeenCalledTimes(2);
       expect(mockPetsService.update).toHaveBeenNthCalledWith(1, 'pet1', {
         isAvailable: false,
@@ -104,6 +128,7 @@ describe('OrdersService', () => {
         isAvailable: false,
       });
 
+      // OrderItems created
       expect(mockOrderItemRepository.create).toHaveBeenCalledTimes(2);
       expect(mockOrderItemRepository.create).toHaveBeenNthCalledWith(1, {
         price: 100,
@@ -115,38 +140,30 @@ describe('OrdersService', () => {
       });
 
       expect(mockOrderRepository.create).toHaveBeenCalledWith({
-        city: 'City',
-        address: 'Address',
-        phoneNumber: '1234567890',
+        city: createOrderDto.city,
+        address: createOrderDto.address,
+        phoneNumber: createOrderDto.phoneNumber,
       });
-      expect(mockOrderRepository.save).toHaveBeenCalledWith({
-        ...order,
-        user,
-        orderItems: [orderItem1, orderItem2],
-        totalAmount: 300,
-      });
-      expect(result).toEqual({
-        ...order,
-        user,
-        orderItems: [orderItem1, orderItem2],
-        totalAmount: 300,
-      });
+      expect(mockOrderRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user,
+          orderItems: [orderItem1, orderItem2],
+          totalAmount: 300,
+        }),
+      );
+      expect(result.totalAmount).toBe(300);
+      expect(result.user).toBe(user);
     });
 
     it('should throw BadRequestException if a pet is not available', async () => {
       const createOrderDto = {
         petIds: ['pet1'],
-        city: 'City',
-        address: 'Address',
-        phoneNumber: '1234567890',
+        city: faker.location.city(),
+        address: faker.location.streetAddress(),
+        phoneNumber: faker.phone.number(),
       };
-      const user = { id: 'user1' } as User;
-      const pet1 = {
-        id: 'pet1',
-        name: 'Pet1',
-        price: 100,
-        isAvailable: false,
-      };
+      const user = buildUser();
+      const pet1 = buildPet({ id: 'pet1', isAvailable: false });
 
       (mockPetsService.findOne as jest.Mock).mockResolvedValue(pet1);
 
@@ -154,24 +171,86 @@ describe('OrdersService', () => {
         BadRequestException,
       );
     });
+
+    it('should not persist the order if any pet is unavailable', async () => {
+      const createOrderDto = {
+        petIds: ['pet1', 'pet2'],
+        city: faker.location.city(),
+        address: faker.location.streetAddress(),
+        phoneNumber: faker.phone.number(),
+      };
+      const user = buildUser();
+
+      const pet1 = buildPet({ id: 'pet1', isAvailable: true });
+      const pet2 = buildPet({ id: 'pet2', isAvailable: false });
+
+      (mockPetsService.findOne as jest.Mock).mockImplementation((id) =>
+        Promise.resolve(id === 'pet1' ? pet1 : pet2),
+      );
+      (mockPetsService.update as jest.Mock).mockResolvedValue(undefined);
+      (mockOrderItemRepository.create as jest.Mock).mockImplementation(
+        (dto) => dto,
+      );
+      (mockOrderRepository.create as jest.Mock).mockReturnValue({});
+
+      await expect(service.create(createOrderDto, user)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(mockOrderRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should fetch each pet by its id', async () => {
+      const createOrderDto = {
+        petIds: ['a', 'b', 'c'],
+        city: 'City',
+        address: 'Address',
+        phoneNumber: '123',
+      };
+      const user = buildUser();
+
+      (mockPetsService.findOne as jest.Mock).mockImplementation((id) =>
+        Promise.resolve(buildPet({ id, price: 10 })),
+      );
+      (mockPetsService.update as jest.Mock).mockResolvedValue(undefined);
+      (mockOrderItemRepository.create as jest.Mock).mockImplementation(
+        (dto) => dto,
+      );
+      (mockOrderRepository.create as jest.Mock).mockReturnValue({});
+      (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
+        Promise.resolve(o),
+      );
+
+      await service.create(createOrderDto, user);
+
+      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(1, 'a');
+      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(2, 'b');
+      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(3, 'c');
+    });
   });
 
   describe('findAll', () => {
     it('should return all orders', async () => {
-      const orders = [{ id: '1' }, { id: '2' }];
+      const orders = [{ id: faker.string.uuid() }, { id: faker.string.uuid() }];
       (mockOrderRepository.find as jest.Mock).mockResolvedValue(orders);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(orders);
       expect(mockOrderRepository.find).toHaveBeenCalled();
+      expect(result).toEqual(orders);
+    });
+
+    it('should return an empty array when there are no orders', async () => {
+      (mockOrderRepository.find as jest.Mock).mockResolvedValue([]);
+      const result = await service.findAll();
+      expect(result).toEqual([]);
     });
   });
 
   describe('findAllUserOrders', () => {
     it('should return all orders belonging to a user', async () => {
-      const userId = 'user1';
-      const orders = [{ id: '1' }, { id: '2' }];
+      const userId = faker.string.uuid();
+      const orders = [{ id: faker.string.uuid() }];
       (mockOrderRepository.find as jest.Mock).mockResolvedValue(orders);
 
       const result = await service.findAllUserOrders(userId);
@@ -184,91 +263,111 @@ describe('OrdersService', () => {
 
     it('should return an empty array if user has no orders', async () => {
       (mockOrderRepository.find as jest.Mock).mockResolvedValue([]);
-
-      const result = await service.findAllUserOrders('user1');
-
+      const result = await service.findAllUserOrders(faker.string.uuid());
       expect(result).toEqual([]);
     });
   });
 
   describe('findOne', () => {
     it('should return an order if found', async () => {
-      const order = { id: '1' };
+      const id = faker.string.uuid();
+      const order = { id };
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
 
-      const result = await service.findOne('1');
+      const result = await service.findOne(id);
 
-      expect(result).toEqual(order);
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
+      expect(result).toEqual(order);
     });
 
     it('should throw NotFoundException if order not found', async () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(faker.string.uuid())).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
-    it('should pass options to findOne', async () => {
-      const order = { id: '1' };
-      const options = { relations: { orderItems: true } };
+    it('should merge provided options with the where clause', async () => {
+      const id = faker.string.uuid();
+      const order = { id };
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
 
-      await service.findOne('1', { relations: { orderItems: true } });
+      await service.findOne(id, { relations: { orderItems: true } });
 
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        ...options,
-        where: { id: '1' },
+        relations: { orderItems: true },
+        where: { id },
       });
     });
   });
 
   describe('findUserOrder', () => {
-    it('should return the order if it belongs to the user', async () => {
+    it('should return the order when it belongs to the user', async () => {
+      const userId = faker.string.uuid();
       const order = {
-        id: '1',
-        user: { id: 'user1' },
+        id: faker.string.uuid(),
+        user: { id: userId },
         orderItems: [],
       };
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
 
-      const result = await service.findUserOrder('1', 'user1');
+      const user = buildUser({ id: userId });
+      const result = await service.findUserOrder(order.id, user);
 
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id: order.id },
         relations: { user: true, orderItems: true },
       });
       expect(result).toEqual(order);
     });
 
+    it('should allow an admin to view any order', async () => {
+      const order = {
+        id: faker.string.uuid(),
+        user: { id: faker.string.uuid() },
+        orderItems: [],
+      };
+      (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
+
+      const admin = buildUser({ admin: true });
+      const result = await service.findUserOrder(order.id, admin);
+
+      expect(result).toEqual(order);
+    });
+
     it('should throw NotFoundException if order not found', async () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
-
-      await expect(service.findUserOrder('1', 'user1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findUserOrder(faker.string.uuid(), buildUser()),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw UnauthorizedException if order belongs to another user', async () => {
-      const order = { id: '1', user: { id: 'anotherUser' } };
+      const order = {
+        id: faker.string.uuid(),
+        user: { id: faker.string.uuid() },
+      };
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
 
-      await expect(service.findUserOrder('1', 'user1')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        service.findUserOrder(order.id, buildUser()),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('update', () => {
     it('should update and save an order if found', async () => {
+      const id = faker.string.uuid();
       const order = {
-        id: '1',
+        id,
         city: 'Old City',
         address: 'Old Address',
         phoneNumber: '1111111111',
       };
-      const updateOrderDto: UpdateOrderDto = {
+      const updateOrderDto = {
         city: 'New City',
         address: 'New Address',
       };
@@ -277,10 +376,10 @@ describe('OrdersService', () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
       (mockOrderRepository.save as jest.Mock).mockResolvedValue(updatedOrder);
 
-      const result = await service.update('1', updateOrderDto);
+      const result = await service.update(id, updateOrderDto);
 
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
       expect(mockOrderRepository.save).toHaveBeenCalledWith(updatedOrder);
       expect(result).toEqual(updatedOrder);
@@ -290,42 +389,61 @@ describe('OrdersService', () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.update('1', { city: 'New City' }),
+        service.update(faker.string.uuid(), { city: 'New City' }),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should only update provided fields and preserve the rest', async () => {
+    it('should preserve fields that are not part of the update', async () => {
+      const id = faker.string.uuid();
       const order = {
-        id: '1',
+        id,
         city: 'Old City',
         address: 'Old Address',
         phoneNumber: '1111111111',
       };
-      const updateOrderDto: UpdateOrderDto = { city: 'New City' };
-
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
       (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
         Promise.resolve(o),
       );
 
-      const result = await service.update('1', updateOrderDto);
+      const result = await service.update(id, { city: 'New City' });
 
       expect(result.city).toBe('New City');
       expect(result.address).toBe('Old Address');
       expect(result.phoneNumber).toBe('1111111111');
     });
+
+    it('should allow updating order status and payment status', async () => {
+      const id = faker.string.uuid();
+      const order = { id, orderStatus: OrderStatus.PENDING };
+      (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
+      (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
+        Promise.resolve(o),
+      );
+
+      const result = await service.update(id, {
+        orderStatus: OrderStatus.SHIPPED,
+        paymentStatus: PaymentStatus.PAID,
+      });
+
+      expect(result.orderStatus).toBe(OrderStatus.SHIPPED);
+      expect(result.paymentStatus).toBe(PaymentStatus.PAID);
+    });
   });
 
   describe('remove', () => {
     it('should remove an order if found', async () => {
-      const order = { id: '1' };
+      const id = faker.string.uuid();
+      const order = { id };
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
-      (mockOrderRepository.delete as jest.Mock).mockResolvedValue(undefined);
+      (mockOrderRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
-      await service.remove('1');
+      await service.remove(id);
 
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
       expect(mockOrderRepository.delete).toHaveBeenCalledWith(order);
     });
@@ -333,14 +451,18 @@ describe('OrdersService', () => {
     it('should throw NotFoundException if order not found', async () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.remove('1')).rejects.toThrow(NotFoundException);
+      await expect(service.remove(faker.string.uuid())).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockOrderRepository.delete).not.toHaveBeenCalled();
     });
   });
 
   describe('markAsProcessing', () => {
-    it('should update order status and payment method', async () => {
+    it('should set order status to PROCESSING and assign payment method', async () => {
+      const id = faker.string.uuid();
       const order = {
-        id: '1',
+        id,
         orderStatus: OrderStatus.PENDING,
         paymentMethod: null,
       };
@@ -349,10 +471,10 @@ describe('OrdersService', () => {
         Promise.resolve(o),
       );
 
-      const result = await service.markAsProcessing('1', PaymentMethod.CARD);
+      const result = await service.markAsProcessing(id, PaymentMethod.CARD);
 
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1' },
+        where: { id },
       });
       expect(order.orderStatus).toBe(OrderStatus.PROCESSING);
       expect(order.paymentMethod).toBe(PaymentMethod.CARD);
@@ -360,11 +482,24 @@ describe('OrdersService', () => {
       expect(result).toEqual(order);
     });
 
+    it('should accept CASH_ON_DELIVERY as the payment method', async () => {
+      const id = faker.string.uuid();
+      const order = { id, orderStatus: OrderStatus.PENDING, paymentMethod: PaymentMethod.CASH_ON_DELIVERY };
+      (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
+      (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
+        Promise.resolve(o),
+      );
+
+      await service.markAsProcessing(id, PaymentMethod.CASH_ON_DELIVERY);
+
+      expect(order.paymentMethod).toBe(PaymentMethod.CASH_ON_DELIVERY);
+    });
+
     it('should throw NotFoundException if order not found', async () => {
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.markAsProcessing('1', PaymentMethod.CARD),
+        service.markAsProcessing(faker.string.uuid(), PaymentMethod.CARD),
       ).rejects.toThrow(NotFoundException);
     });
   });

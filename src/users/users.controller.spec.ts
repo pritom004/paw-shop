@@ -3,6 +3,7 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { UnauthorizedException } from '@nestjs/common';
+import { faker } from '@faker-js/faker';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -40,11 +41,11 @@ describe('UsersController', () => {
   describe('register', () => {
     it('should call authService.register with correct arguments', async () => {
       const body = {
-        name: 'John',
-        email: 'john@example.com',
+        name: faker.person.fullName(),
+        email: faker.internet.email(),
         password: 'Password1!',
       };
-      const user = { id: '1', ...body };
+      const user = { id: faker.string.uuid(), ...body };
       (mockAuthService.register as jest.Mock).mockResolvedValue(user);
 
       const result = await controller.register(body);
@@ -60,8 +61,8 @@ describe('UsersController', () => {
 
   describe('login', () => {
     it('should call authService.login, set session userId, and return user', async () => {
-      const body = { email: 'john@example.com', password: 'Password1!' };
-      const user = { id: '1', email: body.email };
+      const body = { email: faker.internet.email(), password: 'Password1!' };
+      const user = { id: faker.string.uuid(), email: body.email };
       const session = { userId: null };
       (mockAuthService.login as jest.Mock).mockResolvedValue(user);
 
@@ -78,7 +79,7 @@ describe('UsersController', () => {
 
   describe('logout', () => {
     it('should clear session userId', () => {
-      const session = { userId: '1' };
+      const session = { userId: faker.string.uuid() };
       controller.logout(session);
       expect(session.userId).toBeNull();
     });
@@ -86,7 +87,7 @@ describe('UsersController', () => {
 
   describe('whoami', () => {
     it('should return the current user', () => {
-      const user = { id: '1', email: 'john@example.com' };
+      const user = { id: faker.string.uuid(), email: faker.internet.email() };
       const result = controller.whoami(user);
       expect(result).toEqual(user);
     });
@@ -98,41 +99,44 @@ describe('UsersController', () => {
 
   describe('findOne', () => {
     it('should call usersService.findOne with id', async () => {
-      const user = { id: '1', email: 'john@example.com' };
+      const id = faker.string.uuid();
+      const user = { id, email: faker.internet.email() };
       (mockUsersService.findOne as jest.Mock).mockResolvedValue(user);
 
-      const result = await controller.findOne('1');
+      const result = await controller.findOne(id);
 
-      expect(mockUsersService.findOne).toHaveBeenCalledWith('1');
+      expect(mockUsersService.findOne).toHaveBeenCalledWith(id);
       expect(result).toEqual(user);
     });
   });
 
   describe('update', () => {
     it('should call usersService.update with id and dto', async () => {
-      const updateUserDto = { name: 'Jane' };
+      const id = faker.string.uuid();
+      const updateUserDto = { name: faker.person.fullName() };
       const updatedUser = {
-        id: '1',
-        name: 'Jane',
-        email: 'john@example.com',
+        id,
+        name: updateUserDto.name,
+        email: faker.internet.email(),
       };
       (mockUsersService.update as jest.Mock).mockResolvedValue(updatedUser);
 
-      const result = await controller.update('1', updateUserDto);
+      const result = await controller.update(id, updateUserDto);
 
-      expect(mockUsersService.update).toHaveBeenCalledWith('1', updateUserDto);
+      expect(mockUsersService.update).toHaveBeenCalledWith(id, updateUserDto);
       expect(result).toEqual(updatedUser);
     });
   });
 
   describe('removeUser', () => {
     it('should call usersService.remove with id', async () => {
-      const user = { id: '1', email: 'john@example.com' };
+      const id = faker.string.uuid();
+      const user = { id, email: faker.internet.email() };
       (mockUsersService.remove as jest.Mock).mockResolvedValue(user);
 
-      const result = await controller.removeUser('1');
+      const result = await controller.removeUser(id);
 
-      expect(mockUsersService.remove).toHaveBeenCalledWith('1');
+      expect(mockUsersService.remove).toHaveBeenCalledWith(id);
       expect(result).toEqual(user);
     });
   });

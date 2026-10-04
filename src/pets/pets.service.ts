@@ -54,35 +54,37 @@ export class PetsService {
 
     const query = this.petRepository.createQueryBuilder('pet');
 
-    if (name) {
+    if (name !== undefined) {
       query.andWhere('pet.name LIKE :name', { name: `%${name}%` });
     }
 
-    if (age) {
+    if (age !== undefined) {
       query.andWhere('pet.age = :age', { age });
     }
 
-    if (minPrice) {
+    if (minPrice !== undefined) {
       query.andWhere('pet.price >= :minPrice', { minPrice });
     }
 
-    if (maxPrice) {
+    if (maxPrice !== undefined) {
       query.andWhere('pet.price <= :maxPrice', { maxPrice });
     }
 
-    if (breed) {
+    if (breed !== undefined) {
       query.andWhere('pet.breed LIKE :breed', { breed: `%${breed}%` });
     }
 
-    if (city) {
-      query.andWhere('pet.city = city', { city });
+    if (city !== undefined) {
+      query.andWhere('pet.city = :city', { city });
     }
 
-    if (limit) {
+    
+
+    if (limit !== undefined) {
       query.limit(limit);
     }
 
-    if (offset) {
+    if (offset !== undefined) {
       query.offset(offset);
     }
 

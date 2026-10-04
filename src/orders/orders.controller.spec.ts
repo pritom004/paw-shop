@@ -4,10 +4,18 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { User } from '../users/entities/user.entity';
+import { faker } from '@faker-js/faker';
 
 describe('OrdersController', () => {
   let controller: OrdersController;
   let mockOrdersService: Partial<OrdersService>;
+
+  const buildUser = (overrides: Partial<User> = {}): User =>
+    ({
+      id: faker.string.uuid(),
+      admin: false,
+      ...overrides,
+    } as User);
 
   beforeEach(async () => {
     mockOrdersService = {
@@ -18,6 +26,7 @@ describe('OrdersController', () => {
       findUserOrder: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      markAsProcessing: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -34,15 +43,15 @@ describe('OrdersController', () => {
   });
 
   describe('create', () => {
-    it('should call ordersService.create with dto and user', async () => {
+    it('should call ordersService.create with dto and current user', async () => {
       const createOrderDto: CreateOrderDto = {
-        petIds: ['pet1'],
-        city: 'City',
-        address: 'Address',
-        phoneNumber: '1234567890',
+        petIds: [faker.string.uuid()],
+        city: faker.location.city(),
+        address: faker.location.streetAddress(),
+        phoneNumber: faker.phone.number(),
       };
-      const user = { id: 'user1' } as User;
-      const order = { id: 'order1' };
+      const user = buildUser();
+      const order = { id: faker.string.uuid() };
       (mockOrdersService.create as jest.Mock).mockResolvedValue(order);
 
       const result = await controller.create(createOrderDto, user);
@@ -57,7 +66,10 @@ describe('OrdersController', () => {
 
   describe('findAll', () => {
     it('should return all orders (admin)', async () => {
-      const orders = [{ id: '1' }, { id: '2' }];
+      const orders = [
+        { id: faker.string.uuid() },
+        { id: faker.string.uuid() },
+      ];
       (mockOrdersService.findAll as jest.Mock).mockResolvedValue(orders);
 
       const result = await controller.findAll();
@@ -69,55 +81,62 @@ describe('OrdersController', () => {
 
   describe('findAllUserOrders', () => {
     it('should call ordersService.findAllUserOrders with user id', async () => {
-      const user = { id: 'user1' } as User;
-      const orders = [{ id: '1' }, { id: '2' }];
+      const user = buildUser();
+      const orders = [{ id: faker.string.uuid() }];
       (mockOrdersService.findAllUserOrders as jest.Mock).mockResolvedValue(
         orders,
       );
 
       const result = await controller.findAllUserOrders(user);
 
-      expect(mockOrdersService.findAllUserOrders).toHaveBeenCalledWith('user1');
+      expect(mockOrdersService.findAllUserOrders).toHaveBeenCalledWith(
+        user.id,
+      );
       expect(result).toEqual(orders);
     });
   });
 
   describe('findOne', () => {
-    it('should call ordersService.findUserOrder with id and user id', async () => {
-      const user = { id: 'user1' } as User;
-      const order = { id: '1' };
+    it('should call ordersService.findUserOrder with id and the full user object', async () => {
+      const user = buildUser();
+      const order = { id: faker.string.uuid() };
       (mockOrdersService.findUserOrder as jest.Mock).mockResolvedValue(order);
 
-      const result = await controller.findOne('1', user);
+      const result = await controller.findOne(order.id, user);
 
-      expect(mockOrdersService.findUserOrder).toHaveBeenCalledWith('1', 'user1');
+      // The service signature takes a `User` object, not a user id.
+      expect(mockOrdersService.findUserOrder).toHaveBeenCalledWith(
+        order.id,
+        user,
+      );
       expect(result).toEqual(order);
     });
   });
 
   describe('update', () => {
     it('should call ordersService.update with id and dto', async () => {
-      const updateOrderDto: UpdateOrderDto = { city: 'New City' };
-      const updatedOrder = { id: '1', city: 'New City' };
+      const id = faker.string.uuid();
+      const updateOrderDto: UpdateOrderDto = {
+        city: faker.location.city(),
+      };
+      const updatedOrder = { id, ...updateOrderDto };
       (mockOrdersService.update as jest.Mock).mockResolvedValue(updatedOrder);
 
-      const result = await controller.update('1', updateOrderDto);
+      const result = await controller.update(id, updateOrderDto);
 
-      expect(mockOrdersService.update).toHaveBeenCalledWith(
-        '1',
-        updateOrderDto,
-      );
+      expect(mockOrdersService.update).toHaveBeenCalledWith(id, updateOrderDto);
       expect(result).toEqual(updatedOrder);
     });
   });
 
   describe('remove', () => {
     it('should call ordersService.remove with id', async () => {
+      const id = faker.string.uuid();
       (mockOrdersService.remove as jest.Mock).mockResolvedValue(undefined);
 
-      const result = await controller.remove('1');
+      const result = await controller.remove(id);
 
-      expect(mockOrdersService.remove).toHaveBeenCalledWith('1');
+      expect(mockOrdersService.remove).toHaveBeenCalledWith(id);
       expect(result).toBeUndefined();
     });
   });
