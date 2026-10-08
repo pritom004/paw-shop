@@ -9,7 +9,8 @@ import {
 } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { PetsService } from '../pets/pets.service';
-import { Repository } from 'typeorm';
+import { Pet } from '../pets/entities/pet.entity'; // <- adjust path if different
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
   NotFoundException,
   BadRequestException,
@@ -23,6 +24,8 @@ describe('OrdersService', () => {
   let mockOrderRepository: Partial<Repository<Order>>;
   let mockOrderItemRepository: Partial<Repository<OrderItem>>;
   let mockPetsService: Partial<PetsService>;
+  let mockManager: Partial<EntityManager>;
+  let mockDataSource: Partial<DataSource>;
 
   const buildPet = (overrides: Partial<any> = {}) => ({
     id: faker.string.uuid(),
@@ -37,7 +40,7 @@ describe('OrdersService', () => {
       id: faker.string.uuid(),
       admin: false,
       ...overrides,
-    } as User);
+    }) as User;
 
   beforeEach(async () => {
     mockOrderRepository = {
@@ -55,6 +58,22 @@ describe('OrdersService', () => {
       update: jest.fn(),
     };
 
+    // ---- mock EntityManager used inside the transaction ----
+    mockManager = {
+      findOne: jest.fn(),
+      // default: pretend the atomic "reserve pet" update succeeded
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      // manager.create(Entity, dto) -> just return the dto
+      create: jest.fn((_entity: any, dto: any) => ({ ...dto })),
+      // manager.save(entity) -> return it back
+      save: jest.fn((entity: any) => Promise.resolve(entity)),
+    };
+
+    // ---- mock DataSource that runs the callback with mockManager ----
+    mockDataSource = {
+      transaction: jest.fn((cb: any) => cb(mockManager)),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
@@ -64,6 +83,8 @@ describe('OrdersService', () => {
           useValue: mockOrderItemRepository,
         },
         { provide: PetsService, useValue: mockPetsService },
+        // @InjectDataSource() with no name resolves to the DataSource class token
+        { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
 
@@ -75,7 +96,31 @@ describe('OrdersService', () => {
     expect(service).toBeDefined();
   });
 
+  // ============================================================
+  // create()
+  // ============================================================
   describe('create', () => {
+    it('should run the whole order creation inside a transaction', async () => {
+      const createOrderDto = {
+        petIds: ['pet1'],
+        city: faker.location.city(),
+        address: faker.location.streetAddress(),
+        phoneNumber: faker.phone.number(),
+      };
+      const user = buildUser();
+      const pet1 = buildPet({ id: 'pet1', price: 100 });
+
+      (mockManager.findOne as jest.Mock).mockResolvedValue(pet1);
+
+      await service.create(createOrderDto, user);
+
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+      // ensure the callback got an EntityManager
+      expect((mockDataSource.transaction as jest.Mock).mock.calls[0][0]).toEqual(
+        expect.any(Function),
+      );
+    });
+
     it('should create an order with order items and computed total amount', async () => {
       const createOrderDto = {
         petIds: ['pet1', 'pet2'],
@@ -88,74 +133,78 @@ describe('OrdersService', () => {
       const pet1 = buildPet({ id: 'pet1', price: 100 });
       const pet2 = buildPet({ id: 'pet2', price: 200 });
 
-      (mockPetsService.findOne as jest.Mock).mockImplementation((id) => {
-        if (id === 'pet1') return Promise.resolve(pet1);
-        if (id === 'pet2') return Promise.resolve(pet2);
-        return Promise.resolve(null);
-      });
-      (mockPetsService.update as jest.Mock).mockResolvedValue(undefined);
-
-      const orderItem1 = { price: 100, pet: pet1 };
-      const orderItem2 = { price: 200, pet: pet2 };
-      (mockOrderItemRepository.create as jest.Mock).mockImplementation(
-        (dto) => dto,
-      );
-
-      const order = {
-        id: faker.string.uuid(),
-        city: createOrderDto.city,
-        address: createOrderDto.address,
-        phoneNumber: createOrderDto.phoneNumber,
-      };
-      (mockOrderRepository.create as jest.Mock).mockReturnValue(order);
-      (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
-        Promise.resolve(o),
+      (mockManager.findOne as jest.Mock).mockImplementation(
+        (_entity, opts: any) => {
+          const id = opts.where.id;
+          if (id === 'pet1') return Promise.resolve(pet1);
+          if (id === 'pet2') return Promise.resolve(pet2);
+          return Promise.resolve(null);
+        },
       );
 
       const result = await service.create(createOrderDto, user);
 
-      // Each pet is fetched once
-      expect(mockPetsService.findOne).toHaveBeenCalledTimes(2);
-      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(1, 'pet1');
-      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(2, 'pet2');
-
-      // Each pet is marked unavailable
-      expect(mockPetsService.update).toHaveBeenCalledTimes(2);
-      expect(mockPetsService.update).toHaveBeenNthCalledWith(1, 'pet1', {
-        isAvailable: false,
+      // Each pet is fetched via the manager inside the transaction
+      expect(mockManager.findOne).toHaveBeenCalledTimes(2);
+      expect(mockManager.findOne).toHaveBeenNthCalledWith(1, Pet, {
+        where: { id: 'pet1' },
       });
-      expect(mockPetsService.update).toHaveBeenNthCalledWith(2, 'pet2', {
-        isAvailable: false,
+      expect(mockManager.findOne).toHaveBeenNthCalledWith(2, Pet, {
+        where: { id: 'pet2' },
       });
 
-      // OrderItems created
-      expect(mockOrderItemRepository.create).toHaveBeenCalledTimes(2);
-      expect(mockOrderItemRepository.create).toHaveBeenNthCalledWith(1, {
-        price: 100,
-        pet: pet1,
-      });
-      expect(mockOrderItemRepository.create).toHaveBeenNthCalledWith(2, {
-        price: 200,
-        pet: pet2,
-      });
+      // Atomic check-and-reserve on each pet
+      expect(mockManager.update).toHaveBeenCalledTimes(2);
+      expect(mockManager.update).toHaveBeenNthCalledWith(
+        1,
+        Pet,
+        { id: 'pet1', isAvailable: true },
+        { isAvailable: false },
+      );
+      expect(mockManager.update).toHaveBeenNthCalledWith(
+        2,
+        Pet,
+        { id: 'pet2', isAvailable: true },
+        { isAvailable: false },
+      );
 
-      expect(mockOrderRepository.create).toHaveBeenCalledWith({
+      // manager.create called for Order + 2 OrderItems
+      expect(mockManager.create).toHaveBeenCalledTimes(3);
+      expect(mockManager.create).toHaveBeenNthCalledWith(1, Order, {
         city: createOrderDto.city,
         address: createOrderDto.address,
         phoneNumber: createOrderDto.phoneNumber,
       });
-      expect(mockOrderRepository.save).toHaveBeenCalledWith(
+      expect(mockManager.create).toHaveBeenNthCalledWith(2, OrderItem, {
+        price: 100,
+        pet: pet1,
+      });
+      expect(mockManager.create).toHaveBeenNthCalledWith(3, OrderItem, {
+        price: 200,
+        pet: pet2,
+      });
+
+      // save called with the enriched order
+      expect(mockManager.save).toHaveBeenCalledTimes(1);
+      expect(mockManager.save).toHaveBeenCalledWith(
         expect.objectContaining({
+          city: createOrderDto.city,
+          address: createOrderDto.address,
+          phoneNumber: createOrderDto.phoneNumber,
           user,
-          orderItems: [orderItem1, orderItem2],
+          orderItems: [
+            { price: 100, pet: pet1 },
+            { price: 200, pet: pet2 },
+          ],
           totalAmount: 300,
         }),
       );
+
       expect(result.totalAmount).toBe(300);
       expect(result.user).toBe(user);
     });
 
-    it('should throw BadRequestException if a pet is not available', async () => {
+    it('should throw BadRequestException if a pet is no longer available', async () => {
       const createOrderDto = {
         petIds: ['pet1'],
         city: faker.location.city(),
@@ -163,13 +212,36 @@ describe('OrdersService', () => {
         phoneNumber: faker.phone.number(),
       };
       const user = buildUser();
-      const pet1 = buildPet({ id: 'pet1', isAvailable: false });
+      const pet1 = buildPet({ id: 'pet1' });
 
-      (mockPetsService.findOne as jest.Mock).mockResolvedValue(pet1);
+      // Pet still exists...
+      (mockManager.findOne as jest.Mock).mockResolvedValue(pet1);
+      // ...but the atomic reserve update affected 0 rows (someone beat us).
+      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
 
       await expect(service.create(createOrderDto, user)).rejects.toThrow(
         BadRequestException,
       );
+
+      expect(mockManager.save).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if a pet does not exist', async () => {
+      const createOrderDto = {
+        petIds: ['ghost'],
+        city: faker.location.city(),
+        address: faker.location.streetAddress(),
+        phoneNumber: faker.phone.number(),
+      };
+      const user = buildUser();
+
+      (mockManager.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.create(createOrderDto, user)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockManager.update).not.toHaveBeenCalled();
+      expect(mockManager.save).not.toHaveBeenCalled();
     });
 
     it('should not persist the order if any pet is unavailable', async () => {
@@ -181,23 +253,23 @@ describe('OrdersService', () => {
       };
       const user = buildUser();
 
-      const pet1 = buildPet({ id: 'pet1', isAvailable: true });
-      const pet2 = buildPet({ id: 'pet2', isAvailable: false });
+      const pet1 = buildPet({ id: 'pet1' });
+      const pet2 = buildPet({ id: 'pet2' });
 
-      (mockPetsService.findOne as jest.Mock).mockImplementation((id) =>
-        Promise.resolve(id === 'pet1' ? pet1 : pet2),
+      (mockManager.findOne as jest.Mock).mockImplementation(
+        (_entity, opts: any) =>
+          Promise.resolve(opts.where.id === 'pet1' ? pet1 : pet2),
       );
-      (mockPetsService.update as jest.Mock).mockResolvedValue(undefined);
-      (mockOrderItemRepository.create as jest.Mock).mockImplementation(
-        (dto) => dto,
-      );
-      (mockOrderRepository.create as jest.Mock).mockReturnValue({});
+      // First pet reserves fine, second one loses the race.
+      (mockManager.update as jest.Mock)
+        .mockResolvedValueOnce({ affected: 1 })
+        .mockResolvedValueOnce({ affected: 0 });
 
       await expect(service.create(createOrderDto, user)).rejects.toThrow(
         BadRequestException,
       );
 
-      expect(mockOrderRepository.save).not.toHaveBeenCalled();
+      expect(mockManager.save).not.toHaveBeenCalled();
     });
 
     it('should fetch each pet by its id', async () => {
@@ -209,26 +281,47 @@ describe('OrdersService', () => {
       };
       const user = buildUser();
 
-      (mockPetsService.findOne as jest.Mock).mockImplementation((id) =>
-        Promise.resolve(buildPet({ id, price: 10 })),
-      );
-      (mockPetsService.update as jest.Mock).mockResolvedValue(undefined);
-      (mockOrderItemRepository.create as jest.Mock).mockImplementation(
-        (dto) => dto,
-      );
-      (mockOrderRepository.create as jest.Mock).mockReturnValue({});
-      (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
-        Promise.resolve(o),
+      (mockManager.findOne as jest.Mock).mockImplementation(
+        (_entity, opts: any) =>
+          Promise.resolve(buildPet({ id: opts.where.id, price: 10 })),
       );
 
       await service.create(createOrderDto, user);
 
-      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(1, 'a');
-      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(2, 'b');
-      expect(mockPetsService.findOne).toHaveBeenNthCalledWith(3, 'c');
+      expect(mockManager.findOne).toHaveBeenNthCalledWith(1, Pet, {
+        where: { id: 'a' },
+      });
+      expect(mockManager.findOne).toHaveBeenNthCalledWith(2, Pet, {
+        where: { id: 'b' },
+      });
+      expect(mockManager.findOne).toHaveBeenNthCalledWith(3, Pet, {
+        where: { id: 'c' },
+      });
+    });
+
+    it('should de-duplicate petIds so a pet cannot appear twice', async () => {
+      const createOrderDto = {
+        petIds: ['pet1', 'pet1'],
+        city: 'City',
+        address: 'Address',
+        phoneNumber: '123',
+      };
+      const user = buildUser();
+      const pet1 = buildPet({ id: 'pet1', price: 50 });
+
+      (mockManager.findOne as jest.Mock).mockResolvedValue(pet1);
+
+      const result = await service.create(createOrderDto, user);
+
+      expect(mockManager.findOne).toHaveBeenCalledTimes(1);
+      expect(mockManager.update).toHaveBeenCalledTimes(1);
+      expect(result.totalAmount).toBe(50);
     });
   });
 
+  // ============================================================
+  // The rest of the file is UNCHANGED
+  // ============================================================
   describe('findAll', () => {
     it('should return all orders', async () => {
       const orders = [{ id: faker.string.uuid() }, { id: faker.string.uuid() }];
@@ -484,7 +577,11 @@ describe('OrdersService', () => {
 
     it('should accept CASH_ON_DELIVERY as the payment method', async () => {
       const id = faker.string.uuid();
-      const order = { id, orderStatus: OrderStatus.PENDING, paymentMethod: PaymentMethod.CASH_ON_DELIVERY };
+      const order = {
+        id,
+        orderStatus: OrderStatus.PENDING,
+        paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+      };
       (mockOrderRepository.findOne as jest.Mock).mockResolvedValue(order);
       (mockOrderRepository.save as jest.Mock).mockImplementation((o) =>
         Promise.resolve(o),
